@@ -1,0 +1,9 @@
+small console program in c++ with opencv which can cut a large image with many coins into many small images of one coin. 
+
+The program has two options:
+A. if it has just one file - cut it into individual pictures of coins
+B. If has two files - after cutting it looking for the coins, which are intersected by more than 50% and the output is an image of the glued area with two different pictures
+
+App does not know how to define dark or light background, so for definind dark background need use input key -b
+
+In fact, it quickly sketched for the immediate need, so it makes a lot of flaws
