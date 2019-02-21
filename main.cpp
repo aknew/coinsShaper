@@ -8,6 +8,60 @@
 #define rectAdding 10 //увеличение ректа, чтобы избежать ошибок и не обрезать вплотную
 
 using namespace std;
+using namespace cv;
+
+Mat grayBlurredImage(Mat &src) {
+    GaussianBlur( src, src, Size(3,3), 0, 0, BORDER_DEFAULT );
+
+    /// Convert it to gray
+    Mat src_gray;
+    cvtColor( src, src_gray, CV_BGR2GRAY );
+    return src_gray;
+}
+
+Mat sobelFilter(Mat &src_gray) {
+    // based on https://docs.opencv.org/2.4/doc/tutorials/imgproc/imgtrans/sobel_derivatives/sobel_derivatives.html
+    Mat grad;
+
+    int scale = 1;
+    int delta = 0;
+    int ddepth = CV_16S;
+
+    /// Generate grad_x and grad_y
+    Mat grad_x, grad_y;
+    Mat abs_grad_x, abs_grad_y;
+
+    /// Gradient X
+    //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+    Sobel( src_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( grad_x, abs_grad_x );
+
+    /// Gradient Y
+    //Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+    Sobel( src_gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( grad_y, abs_grad_y );
+
+    /// Total Gradient (approximate)
+    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+    return grad;
+}
+
+vector<Rect> findContoursRects(Mat &img){
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+    //CV_RETR_EXTERNAL RETR_TREE
+    cv::findContours(img, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+    vector<Rect> rects;
+    rects.reserve(contours.size());
+    const int kMinSize = 50;
+    for (auto c : contours) {
+        auto rect = boundingRect(c);
+        if (rect.width > kMinSize && rect.height > kMinSize) {
+            rects.push_back(rect);
+        }
+    }
+    return rects;
+}
 
 int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBlack=false);
 
@@ -54,6 +108,51 @@ int main(int argc, char* argv[])
 #else
     mkdir(outputDir.c_str(),0777);
 #endif
+
+    Mat img1 = imread(inputFile1);
+    Mat gray1 = grayBlurredImage(img1);
+    Mat ts1;
+    threshold(gray1, ts1, 210.0, 255.0, THRESH_BINARY);
+    auto rects1 = findContoursRects(ts1);
+    cout<<"find contours in 1 new: "<<rects1.capacity()<<endl;
+    imwrite("grayNew.jpg", gray1);
+    imwrite("thresholdNew.jpg", ts1);
+
+    if (inputFile2 != "") {
+
+        Mat img2 = imread(inputFile2);
+        Mat gray2 = grayBlurredImage(img2);
+        Mat ts2;
+        threshold(gray2, ts2, 210.0, 255.0, THRESH_BINARY);
+        auto rects2 = findContoursRects(ts2);
+        cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
+        int i = 0;
+        for (auto rect1: rects1) {
+            for (auto rect2: rects2) {
+                if (rectCompare(rect1, rect2)){
+                    int height = max(rect1.height,rect2.height);
+                    int width = rect1.width + rect2.width;
+                    Mat result(height, width, img1.type());
+
+                    Mat imgROI1 = img1(rect1);
+                    Rect roi = Rect(0, 0, rect1.width, rect1.height);
+                    Mat resultROI1 = result(roi);
+                    imgROI1.copyTo(resultROI1);
+
+
+                    Mat imgROI2 = img2(rect2);
+                    roi = Rect(rect1.width, 0, rect2.width, rect2.height);
+                    Mat resultROI2 = result(roi);
+                    imgROI2.copyTo(resultROI2);
+
+                    stringstream imname;
+                    imname<<outputDir<<"/coinNew"<<i<<".jpg";
+                    ++i;
+                    imwrite(imname.str(), result);
+                }
+            }
+        }
+    }
 
     IplImage* image1 = 0;
 
@@ -170,9 +269,10 @@ int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBl
     cvSmooth(dst,dst, CV_GAUSSIAN, 15, 15);
     // преобразуем в градации серого
     cvCvtColor(dst, gray, CV_RGB2GRAY);
-
+    cvSaveImage("grayOld.jpg", gray);
     // преобразуем в двоичное
     cvThreshold( gray, gray, 128, 255, CV_THRESH_OTSU);
+    cvSaveImage("thresholdOld.jpg", gray);
 
     //если фон черный - инвертируем изображение
     if (!isBlack)
