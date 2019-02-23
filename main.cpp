@@ -10,12 +10,15 @@
 using namespace std;
 using namespace cv;
 
-Mat grayBlurredImage(Mat &src) {
-    GaussianBlur( src, src, Size(3,3), 0, 0, BORDER_DEFAULT );
+int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBlack=false);
 
-    /// Convert it to gray
+bool rectCompare(CvRect rect1, CvRect rect2);
+
+Mat grayBlurredImage(Mat &src) {
     Mat src_gray;
+    /// Convert it to gray
     cvtColor( src, src_gray, CV_BGR2GRAY );
+    GaussianBlur(src_gray, src_gray, Size(15,15), 0, 0, BORDER_DEFAULT );
     return src_gray;
 }
 
@@ -50,7 +53,7 @@ vector<Rect> findContoursRects(Mat &img){
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
     //CV_RETR_EXTERNAL RETR_TREE
-    cv::findContours(img, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+    cv::findContours(img, contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
     vector<Rect> rects;
     rects.reserve(contours.size());
     const int kMinSize = 50;
@@ -63,9 +66,48 @@ vector<Rect> findContoursRects(Mat &img){
     return rects;
 }
 
-int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBlack=false);
+void cropResultImages(Mat &firstImage, Mat &secondImage, vector<Rect> &firstRects, vector<Rect> &secondRects, string nameCore) {
+    int i = 0;
+    for (auto rect1: firstRects) {
+        for (auto rect2: secondRects) {
+            if (rectCompare(rect1, rect2)){
+                int height = max(rect1.height,rect2.height);
+                int width = rect1.width + rect2.width;
+                Mat result(height, width, firstImage.type());
 
-bool rectCompare(CvRect rect1, CvRect rect2);
+                Mat imgROI1 = firstImage(rect1);
+                Rect roi = Rect(0, 0, rect1.width, rect1.height);
+                Mat resultROI1 = result(roi);
+                imgROI1.copyTo(resultROI1);
+
+
+                Mat imgROI2 = secondImage(rect2);
+                roi = Rect(rect1.width, 0, rect2.width, rect2.height);
+                Mat resultROI2 = result(roi);
+                imgROI2.copyTo(resultROI2);
+
+                stringstream imname;
+                imname << nameCore << i << ".jpg";
+                ++i;
+                imwrite(imname.str(), result);
+            }
+        }
+    }
+}
+
+Mat preprocessImage(Mat &src, bool saveTransitionStage = false, string nameCore = "") {
+    Mat gray = grayBlurredImage(src);
+    Mat result;
+    threshold(gray, result, 128, 255.0, THRESH_OTSU);
+
+    if (saveTransitionStage) {
+        string grayName = nameCore + "Gray.jpg";
+        imwrite(grayName, gray);
+        string tsName = nameCore + "Threshold.jpg";
+        imwrite(tsName, result);
+    }
+    return result;
+}
 
 int main(int argc, char* argv[])
 {
@@ -109,49 +151,19 @@ int main(int argc, char* argv[])
     mkdir(outputDir.c_str(),0777);
 #endif
 
-    Mat img1 = imread(inputFile1);
-    Mat gray1 = grayBlurredImage(img1);
-    Mat ts1;
-    threshold(gray1, ts1, 210.0, 255.0, THRESH_BINARY);
-    auto rects1 = findContoursRects(ts1);
+    Mat firstImage = imread(inputFile1);
+    Mat preprocessed = preprocessImage(firstImage, true, outputDir + "/first");
+    auto rects1 = findContoursRects(preprocessed);
     cout<<"find contours in 1 new: "<<rects1.capacity()<<endl;
-    imwrite("grayNew.jpg", gray1);
-    imwrite("thresholdNew.jpg", ts1);
 
     if (inputFile2 != "") {
 
-        Mat img2 = imread(inputFile2);
-        Mat gray2 = grayBlurredImage(img2);
-        Mat ts2;
-        threshold(gray2, ts2, 210.0, 255.0, THRESH_BINARY);
-        auto rects2 = findContoursRects(ts2);
+        Mat secondImage = imread(inputFile2);
+        Mat preprocessed = preprocessImage(secondImage, true, outputDir + "/second");
+        auto rects2 = findContoursRects(preprocessed);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
-        int i = 0;
-        for (auto rect1: rects1) {
-            for (auto rect2: rects2) {
-                if (rectCompare(rect1, rect2)){
-                    int height = max(rect1.height,rect2.height);
-                    int width = rect1.width + rect2.width;
-                    Mat result(height, width, img1.type());
 
-                    Mat imgROI1 = img1(rect1);
-                    Rect roi = Rect(0, 0, rect1.width, rect1.height);
-                    Mat resultROI1 = result(roi);
-                    imgROI1.copyTo(resultROI1);
-
-
-                    Mat imgROI2 = img2(rect2);
-                    roi = Rect(rect1.width, 0, rect2.width, rect2.height);
-                    Mat resultROI2 = result(roi);
-                    imgROI2.copyTo(resultROI2);
-
-                    stringstream imname;
-                    imname<<outputDir<<"/coinNew"<<i<<".jpg";
-                    ++i;
-                    imwrite(imname.str(), result);
-                }
-            }
-        }
+        cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coinsNew");
     }
 
     IplImage* image1 = 0;
@@ -166,7 +178,7 @@ int main(int argc, char* argv[])
 
     int c=findCoins(storage, &contours, image1, blackBackground);
 
-    cout<<"find coins in file2:"<<c<<endl;
+    cout<<"find coins in file1:"<<c<<endl;
 
     if (inputFile2!=""){
         IplImage* image2 = 0;
@@ -181,9 +193,7 @@ int main(int argc, char* argv[])
 
         c=findCoins(storage2, &contours2, image2, blackBackground);
 
-        cout<<"find coins in file1:"<<c<<endl;
-
-        //сохраним контуры, в дальнейшем здесь будет соединение контуров с двух картинок
+        cout<<"find coins in file2:"<<c<<endl;
 
         int i=0;
         for(CvSeq* seq0 = contours2;seq0!=0;seq0 = seq0->h_next){
@@ -216,7 +226,7 @@ int main(int argc, char* argv[])
 
 
                     stringstream convert;
-                    convert<<outputDir<<"/coin"<<i<<".jpg";
+                    convert<<outputDir<<"/coin"<<i<<"Old.jpg";
                     ++i;
                     cvSaveImage(convert.str().c_str(), imgRoi);
                     cvReleaseImage(&imgRoi);
@@ -236,7 +246,7 @@ int main(int argc, char* argv[])
         int i=0;
         for(CvSeq* seq0 = contours;seq0!=0;seq0 = seq0->h_next){
             stringstream convert;
-            convert<<outputDir<<"/coin"<<i<<".jpg";
+            convert<<outputDir<<"/coin"<<i<<"Old.jpg";
             CvRect rect=cvBoundingRect(seq0);
             rect.x-=rectAdding;
             rect.y-=rectAdding;
