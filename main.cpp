@@ -53,10 +53,10 @@ vector<Rect> findContoursRects(Mat &img){
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
     //CV_RETR_EXTERNAL RETR_TREE
-    cv::findContours(img, contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    cv::findContours(img, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
     vector<Rect> rects;
     rects.reserve(contours.size());
-    const int kMinSize = 50;
+    const int kMinSize = 10;
     for (auto c : contours) {
         auto rect = boundingRect(c);
         if (rect.width > kMinSize && rect.height > kMinSize) {
@@ -159,11 +159,11 @@ int main(int argc, char* argv[])
     if (inputFile2 != "") {
 
         Mat secondImage = imread(inputFile2);
-        Mat preprocessed = preprocessImage(secondImage, true, outputDir + "/second");
-        auto rects2 = findContoursRects(preprocessed);
+        Mat preprocessed2 = preprocessImage(secondImage, true, outputDir + "/second");
+        auto rects2 = findContoursRects(preprocessed2);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
 
-        cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coinsNew");
+        cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coinCpp");
     }
 
     IplImage* image1 = 0;
@@ -195,51 +195,16 @@ int main(int argc, char* argv[])
 
         cout<<"find coins in file2:"<<c<<endl;
 
-        int i=0;
-        for(CvSeq* seq0 = contours2;seq0!=0;seq0 = seq0->h_next){
-            CvRect rect=cvBoundingRect(seq0);
-            rect.x-=rectAdding;
-            rect.y-=rectAdding;
-            rect.width+=2*rectAdding;
-            rect.height+=2*rectAdding;
-            for(CvSeq* seq1 = contours;seq1!=0;seq1 = seq1->h_next){
-                CvRect rect1=cvBoundingRect(seq1);
-                rect1.x-=rectAdding;
-                rect1.y-=rectAdding;
-                rect1.width+=2*rectAdding;
-                rect1.height+=2*rectAdding;
-                if (rectCompare(rect1,rect)){
-                    cvSetImageROI(image2, rect);
-                    cvSetImageROI(image1, rect1);
-
-                    IplImage* imgRoi   = cvCreateImage( cvSize(rect.width+rect1.width, max(rect1.height,rect.height)),
-                                                        image1->depth,
-                                                        image1->nChannels
-                                                      );
-                    cvSetImageROI(imgRoi, cvRect(0, 0, rect1.width, rect1.height));
-                    cvResize(image1,imgRoi);
-                    cvResetImageROI(imgRoi);
-
-                    cvSetImageROI(imgRoi, cvRect(rect1.width, 0, rect.width, rect.height));
-                    cvResize(image2,imgRoi);
-                    cvResetImageROI(imgRoi);
-
-
-                    stringstream convert;
-                    convert<<outputDir<<"/coin"<<i<<"Old.jpg";
-                    ++i;
-                    cvSaveImage(convert.str().c_str(), imgRoi);
-                    cvReleaseImage(&imgRoi);
-
-                    cvResetImageROI(image1);
-                    cvResetImageROI(image2);
-
-                    //break;
-                }
-            }
-
+        vector<Rect> first, second;
+        for(CvSeq* seq0 = contours2;seq0!=0;seq0 = seq0->h_next) {
+            second.push_back(cvBoundingRect(seq0));
         }
-
+        for(CvSeq* seq1 = contours;seq1!=0;seq1 = seq1->h_next){
+            first.push_back(cvBoundingRect(seq1));
+        }
+        Mat im1(image1);
+        Mat im2(image2);
+        cropResultImages(im1, im2, first, second, outputDir + "/coin");
         cvReleaseImage(&image2);
     }
     else  {
