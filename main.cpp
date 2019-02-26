@@ -95,6 +95,17 @@ void cropResultImages(Mat &firstImage, Mat &secondImage, vector<Rect> &firstRect
     }
 }
 
+void cutSingleImage(Mat &image, vector<Rect> &rects, string nameCore) {
+    int i = 0;
+    for (auto rect1: rects) {
+        Mat imgROI1 = image(rect1);
+        stringstream imname;
+        imname << nameCore << i << ".jpg";
+        ++i;
+        imwrite(imname.str(), imgROI1);
+    }
+}
+
 Mat preprocessImage(Mat &src, bool saveTransitionStage = false, string nameCore = "") {
     Mat gray = grayBlurredImage(src);
     Mat result;
@@ -164,6 +175,8 @@ int main(int argc, char* argv[])
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
 
         cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coinCpp");
+    } else {
+        cutSingleImage(firstImage, rects1, outputDir + "/coinCpp");
     }
 
     IplImage* image1 = 0;
@@ -208,21 +221,12 @@ int main(int argc, char* argv[])
         cvReleaseImage(&image2);
     }
     else  {
-        int i=0;
-        for(CvSeq* seq0 = contours;seq0!=0;seq0 = seq0->h_next){
-            stringstream convert;
-            convert<<outputDir<<"/coin"<<i<<"Old.jpg";
-            CvRect rect=cvBoundingRect(seq0);
-            rect.x-=rectAdding;
-            rect.y-=rectAdding;
-            rect.width+=2*rectAdding;
-            rect.height+=2*rectAdding;
-            IplImage* imgRoi   = cvCloneImage(image1);
-            cvSetImageROI(imgRoi, rect);
-            cvSaveImage(convert.str().c_str(), imgRoi);
-            cvReleaseImage(&imgRoi);
-            ++i;
+        vector<Rect> first;
+        for(CvSeq* seq1 = contours;seq1!=0;seq1 = seq1->h_next){
+            first.push_back(cvBoundingRect(seq1));
         }
+        Mat im1(image1);
+        cutSingleImage(im1, first, outputDir + "/coin");
     }
 
     cvReleaseImage(&image1);
