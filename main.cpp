@@ -106,16 +106,26 @@ void cutSingleImage(Mat &image, vector<Rect> &rects, string nameCore) {
     }
 }
 
-Mat preprocessImage(Mat &src, bool saveTransitionStage = false, string nameCore = "") {
+Mat preprocessImage(Mat &src, bool useSobel = false, bool saveTransitionStage = false, string nameCore = "") {
     Mat gray = grayBlurredImage(src);
     Mat result;
-    threshold(gray, result, 128, 255.0, THRESH_OTSU);
+    if (useSobel) {
+        result = sobelFilter(gray);
+    } else {
+        threshold(gray, result, 128, 255.0, THRESH_OTSU);
+    }
 
     if (saveTransitionStage) {
         string grayName = nameCore + "Gray.jpg";
         imwrite(grayName, gray);
-        string tsName = nameCore + "Threshold.jpg";
-        imwrite(tsName, result);
+        string resultName = nameCore;
+        if (useSobel) {
+            resultName = resultName + "Sobel.jpg";
+        } else {
+            resultName = resultName + "Threshold.jpg";
+        }
+
+        imwrite(resultName, result);
     }
     return result;
 }
@@ -162,15 +172,17 @@ int main(int argc, char* argv[])
     mkdir(outputDir.c_str(),0777);
 #endif
 
+    bool useSobel = false;
+
     Mat firstImage = imread(inputFile1);
-    Mat preprocessed = preprocessImage(firstImage, true, outputDir + "/first");
+    Mat preprocessed = preprocessImage(firstImage, useSobel, true, outputDir + "/first");
     auto rects1 = findContoursRects(preprocessed);
     cout<<"find contours in 1 new: "<<rects1.capacity()<<endl;
 
     if (inputFile2 != "") {
 
         Mat secondImage = imread(inputFile2);
-        Mat preprocessed2 = preprocessImage(secondImage, true, outputDir + "/second");
+        Mat preprocessed2 = preprocessImage(secondImage, useSobel, true, outputDir + "/second");
         auto rects2 = findContoursRects(preprocessed2);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
 
@@ -269,18 +281,27 @@ int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBl
 
 bool rectCompare(CvRect rect1, CvRect rect2){
 
-    //проверяем что площадь пресечения больше половины от площади прямоугольника
-    int S0=rect1.width*rect1.height;
+    int S1=rect1.width*rect1.height;
+    int S2=rect2.width*rect2.height;
+
+    float ratio = float(S1)/float(S2);
+
+    const float kRatioThreashold = 0.2;
+
+    if (abs(1.0-ratio) > kRatioThreashold) {
+        // square ratio is too big, it can't be different side of one object
+        return false;
+    }
 
     int x=max(rect1.x,rect2.x);
     int y=max(rect1.y,rect2.y);
-    int w=min(rect1.x+rect1.width,rect2.x+rect2.width);
-    int h=min(rect1.y+rect1.height, rect2.y+rect2.height);
+    int w=min(rect1.width, rect2.width);
+    int h=min(rect1.height, rect2.height);
 
     if (x>w || y>h)
         return false;
 
     int S=(w-x)*(h-y);
 
-    return S>0.5*S0;
+    return S>0.5*S1;
 }
