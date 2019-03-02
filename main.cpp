@@ -295,8 +295,8 @@ bool rectCompare(CvRect rect1, CvRect rect2){
 
     int x=max(rect1.x,rect2.x);
     int y=max(rect1.y,rect2.y);
-    int w=min(rect1.width, rect2.width);
-    int h=min(rect1.height, rect2.height);
+    int w=min(rect1.x+rect1.width, rect2.x+rect2.width);
+    int h=min(rect1.y+rect1.height, rect2.y+rect2.height);
 
     if (x>w || y>h)
         return false;
