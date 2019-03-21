@@ -15,7 +15,7 @@ int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBl
 
 bool rectCompare(CvRect rect1, CvRect rect2);
 
-Mat grayBlurredImage(Mat &src, float blurCoefficient = 0.05) {
+Mat grayBlurredImage(Mat &src, float blurCoefficient) {
     Mat src_gray;
     /// Convert it to gray
     cvtColor( src, src_gray, CV_BGR2GRAY );
@@ -111,8 +111,8 @@ void cutSingleImage(Mat &image, vector<Rect> &rects, string nameCore) {
     }
 }
 
-Mat preprocessImage(Mat &src, bool useSobel = false, int thParam = 128, bool saveTransitionStage = false, string nameCore = "") {
-    Mat gray = grayBlurredImage(src);
+Mat preprocessImage(Mat &src, float blurParam, bool useSobel, int thParam, bool saveProcessed, string nameCore = "") {
+    Mat gray = grayBlurredImage(src, blurParam);
     Mat result;
     if (useSobel) {
         result = sobelFilter(gray);
@@ -120,7 +120,7 @@ Mat preprocessImage(Mat &src, bool useSobel = false, int thParam = 128, bool sav
         threshold(gray, result, thParam, 255.0, THRESH_BINARY);
     }
 
-    if (saveTransitionStage) {
+    if (saveProcessed) {
         string grayName = nameCore + "Gray.jpg";
         imwrite(grayName, gray);
         string resultName = nameCore;
@@ -135,32 +135,48 @@ Mat preprocessImage(Mat &src, bool useSobel = false, int thParam = 128, bool sav
     return result;
 }
 
+void printHelp() {
+    cout << "usage: coinsShaper [-o OutputDir -saveProcessed -blur N.N -th N] inputFile1 [inputFile2]" << endl;
+    cout << "   -o OutputDir    path to directory where result will saved" << endl;
+    cout << "   -saveProcessed  app will save preprocessed images (blurred gray and thresholded" << endl;
+    cout << "   -blur N.N   blur level from 0 to 1.0, default value is 0.05" << endl;
+    cout << "   -th N   threshold level, default value is 50" << endl;
+}
+
 int main(int argc, char* argv[])
 {
 
     string outputDir="", inputFile1="", inputFile2="";
     bool blackBackground=false;
-    bool nextKeyisOutput=false;
+    bool saveProcessed = false;
+    int thLevel = 50;
+    float blurLevel = 0.05;
+    bool useSobel = false;
 
-    for (int i=1; i<argc; ++i){
-        if (nextKeyisOutput){
-            outputDir=string(argv[i]);
-            nextKeyisOutput=false;
-            continue;
-        }
+    int i = 1;
+    while (i<argc) {
         string str=string(argv[i]);
-        if (str=="-b"){
-            blackBackground=true;
-        }
-        else if (str.find("-o=")!=string::npos){
-            outputDir=str.substr(3);
-            if (outputDir=="")
-                nextKeyisOutput=true;
-        }else if (inputFile1==""){
+
+        if (str == "-o"){ // output directory
+            ++i;
+            outputDir=string(argv[i]);
+        } else if (str == "-help") {
+            printHelp();
+            return 0;
+        } else if (str == "-saveProcessed") {
+            saveProcessed = true;
+        } else if (str == "-th"){ // output directory
+            ++i;
+            thLevel = atoi(argv[i]);
+        }else if (str == "-blur"){ // output directory
+            ++i;
+            blurLevel = atof(argv[i]);
+        } else if (inputFile1==""){
             inputFile1=str;
-        }else{
+        } else {
             inputFile2=str;
         }
+        ++i;
     }
 
     if (inputFile1==""){
@@ -177,17 +193,15 @@ int main(int argc, char* argv[])
     mkdir(outputDir.c_str(),0777);
 #endif
 
-    bool useSobel = false;
-
     Mat firstImage = imread(inputFile1);
-    Mat preprocessed = preprocessImage(firstImage, useSobel, 50, true, outputDir + "/first");
+    Mat preprocessed = preprocessImage(firstImage, blurLevel, useSobel, thLevel, saveProcessed, outputDir + "/first");
     auto rects1 = findContoursRects(preprocessed);
     cout<<"find contours in 1 new: "<<rects1.capacity()<<endl;
 
     if (inputFile2 != "") {
 
         Mat secondImage = imread(inputFile2);
-        Mat preprocessed2 = preprocessImage(secondImage, useSobel, 50, true, outputDir + "/second");
+        Mat preprocessed2 = preprocessImage(secondImage, blurLevel, useSobel, thLevel, saveProcessed, outputDir + "/second");
         auto rects2 = findContoursRects(preprocessed2);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
 
