@@ -5,13 +5,8 @@
 
 #include <opencv2/opencv.hpp>
 
-
-#define rectAdding 10 //увеличение ректа, чтобы избежать ошибок и не обрезать вплотную
-
 using namespace std;
 using namespace cv;
-
-int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBlack=false);
 
 bool rectCompare(CvRect rect1, CvRect rect2);
 
@@ -143,19 +138,18 @@ void printHelp() {
     cout << "   -th N   threshold level, default value is 50" << endl;
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 
     string outputDir="", inputFile1="", inputFile2="";
-    bool blackBackground=false;
     bool saveProcessed = false;
     int thLevel = 50;
     float blurLevel = 0.05;
     bool useSobel = false;
 
     int i = 1;
+    // I know about boost/program_options, but I don't want add all boost only for this small issue
     while (i<argc) {
-        string str=string(argv[i]);
+        string str = string(argv[i]);
 
         if (str == "-o"){ // output directory
             ++i;
@@ -209,94 +203,8 @@ int main(int argc, char* argv[])
     } else {
         cutSingleImage(firstImage, rects1, outputDir + "/coinCpp");
     }
-
-    IplImage* image1 = 0;
-
-    // получаем первую картинку
-    image1 = cvLoadImage(inputFile1.c_str(),1);
-
-    assert( image1 != 0 );
-
-    CvMemStorage* storage = cvCreateMemStorage(0);
-    CvSeq* contours=0;
-
-    int c=findCoins(storage, &contours, image1, blackBackground);
-
-    cout<<"find coins in file1:"<<c<<endl;
-
-    if (inputFile2!=""){
-        IplImage* image2 = 0;
-
-        // получаем первую картинку
-        image2 = cvLoadImage(inputFile2.c_str(),1);
-
-        assert( image2 != 0 );
-
-        CvMemStorage* storage2 = cvCreateMemStorage(0);
-        CvSeq* contours2=0;
-
-        c=findCoins(storage2, &contours2, image2, blackBackground);
-
-        cout<<"find coins in file2:"<<c<<endl;
-
-        vector<Rect> first, second;
-        for(CvSeq* seq0 = contours2;seq0!=0;seq0 = seq0->h_next) {
-            second.push_back(cvBoundingRect(seq0));
-        }
-        for(CvSeq* seq1 = contours;seq1!=0;seq1 = seq1->h_next){
-            first.push_back(cvBoundingRect(seq1));
-        }
-        Mat im1(image1);
-        Mat im2(image2);
-        cropResultImages(im1, im2, first, second, outputDir + "/coin");
-        cvReleaseImage(&image2);
-    }
-    else  {
-        vector<Rect> first;
-        for(CvSeq* seq1 = contours;seq1!=0;seq1 = seq1->h_next){
-            first.push_back(cvBoundingRect(seq1));
-        }
-        Mat im1(image1);
-        cutSingleImage(im1, first, outputDir + "/coin");
-    }
-
-    cvReleaseImage(&image1);
-
     return 0;
 }
-
-int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBlack){
-
-    IplImage* gray = 0;
-    IplImage* dst = 0;
-
-    // клонируем
-    dst = cvCloneImage(image);
-    // создаём одноканальные картинки
-    gray = cvCreateImage( cvGetSize(image), IPL_DEPTH_8U, 1 );
-
-    //сглаживаем
-    cvSmooth(dst,dst, CV_GAUSSIAN, 15, 15);
-    // преобразуем в градации серого
-    cvCvtColor(dst, gray, CV_RGB2GRAY);
-    cvSaveImage("grayOld.jpg", gray);
-    // преобразуем в двоичное
-    cvThreshold( gray, gray, 128, 255, CV_THRESH_OTSU);
-    cvSaveImage("thresholdOld.jpg", gray);
-
-    //если фон черный - инвертируем изображение
-    if (!isBlack)
-        cvNot(gray,gray);
-
-    // находим контуры
-    int contoursCont = cvFindContours( gray, storage,contours,sizeof(CvContour),CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,cvPoint(0,0));
-
-    cvReleaseImage(&gray);
-    cvReleaseImage(&dst);
-
-    return contoursCont;
-}
-
 
 bool rectCompare(CvRect rect1, CvRect rect2){
 
