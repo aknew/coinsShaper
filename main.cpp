@@ -5,6 +5,7 @@
 
 #include <opencv2/opencv.hpp>
 
+
 #define rectAdding 10 //увеличение ректа, чтобы избежать ошибок и не обрезать вплотную
 
 using namespace std;
@@ -14,11 +15,15 @@ int findCoins(CvMemStorage* storage,CvSeq** contours, IplImage* image, bool isBl
 
 bool rectCompare(CvRect rect1, CvRect rect2);
 
-Mat grayBlurredImage(Mat &src) {
+Mat grayBlurredImage(Mat &src, float blurCoefficient = 0.05) {
     Mat src_gray;
     /// Convert it to gray
     cvtColor( src, src_gray, CV_BGR2GRAY );
-    GaussianBlur(src_gray, src_gray, Size(15,15), 0, 0, BORDER_DEFAULT );
+    int size = min(src.rows,src.cols)*blurCoefficient*0.25;
+    if ( size % 2 == 0) {
+        ++size;
+    }
+    GaussianBlur(src_gray, src_gray, Size(size,size), 0, 0, BORDER_DEFAULT );
     return src_gray;
 }
 
@@ -106,13 +111,13 @@ void cutSingleImage(Mat &image, vector<Rect> &rects, string nameCore) {
     }
 }
 
-Mat preprocessImage(Mat &src, bool useSobel = false, bool saveTransitionStage = false, string nameCore = "") {
+Mat preprocessImage(Mat &src, bool useSobel = false, int thParam = 128, bool saveTransitionStage = false, string nameCore = "") {
     Mat gray = grayBlurredImage(src);
     Mat result;
     if (useSobel) {
         result = sobelFilter(gray);
     } else {
-        threshold(gray, result, 128, 255.0, THRESH_OTSU);
+        threshold(gray, result, thParam, 255.0, THRESH_BINARY);
     }
 
     if (saveTransitionStage) {
@@ -175,14 +180,14 @@ int main(int argc, char* argv[])
     bool useSobel = false;
 
     Mat firstImage = imread(inputFile1);
-    Mat preprocessed = preprocessImage(firstImage, useSobel, true, outputDir + "/first");
+    Mat preprocessed = preprocessImage(firstImage, useSobel, 50, true, outputDir + "/first");
     auto rects1 = findContoursRects(preprocessed);
     cout<<"find contours in 1 new: "<<rects1.capacity()<<endl;
 
     if (inputFile2 != "") {
 
         Mat secondImage = imread(inputFile2);
-        Mat preprocessed2 = preprocessImage(secondImage, useSobel, true, outputDir + "/second");
+        Mat preprocessed2 = preprocessImage(secondImage, useSobel, 50, true, outputDir + "/second");
         auto rects2 = findContoursRects(preprocessed2);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
 
@@ -303,5 +308,5 @@ bool rectCompare(CvRect rect1, CvRect rect2){
 
     int S=(w-x)*(h-y);
 
-    return S>0.5*S1;
+    return S>0;
 }
