@@ -49,17 +49,25 @@ Mat sobelFilter(Mat &src_gray) {
     return grad;
 }
 
-vector<Rect> findContoursRects(Mat &img){
+vector<Rect> findContoursRects(Mat &img, int minSize = 10, int rectAppend = 30){
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
     //CV_RETR_EXTERNAL RETR_TREE
     cv::findContours(img, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
     vector<Rect> rects;
     rects.reserve(contours.size());
-    const int kMinSize = 10;
     for (auto c : contours) {
         auto rect = boundingRect(c);
-        if (rect.width > kMinSize && rect.height > kMinSize) {
+        if (rect.width > minSize && rect.height > minSize) {
+
+            // add some space around contour
+
+            int x = max(rect.x - rectAppend,0);
+            int y = max(rect.y - rectAppend,0);
+            int w = min(rect.width + rectAppend*2, img.cols - rect.x);
+            int h = min(rect.height + rectAppend*2, img.rows - rect.y);
+            rect = Rect(x,y,w,h);
+
             rects.push_back(rect);
         }
     }
