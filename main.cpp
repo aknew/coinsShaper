@@ -144,12 +144,15 @@ void printHelp() {
     cout << "   -saveProcessed  app will save preprocessed images (blurred gray and thresholded" << endl;
     cout << "   -blur N.N   blur level from 0 to 1.0, default value is 0.05" << endl;
     cout << "   -th N   threshold level, default value is 50" << endl;
+    cout << "   -dry-run   dry run with saving preproccessed images and without cropping" << endl;
+
 }
 
 int main(int argc, char* argv[]) {
 
     string outputDir="", inputFile1="", inputFile2="";
     bool saveProcessed = false;
+    bool dryRun = false;
     int thLevel = 50;
     float blurLevel = 0.05;
     bool useSobel = false;
@@ -167,15 +170,18 @@ int main(int argc, char* argv[]) {
             return 0;
         } else if (str == "-saveProcessed") {
             saveProcessed = true;
-        } else if (str == "-th"){ // output directory
+        } else if (str == "-th"){
             ++i;
             thLevel = atoi(argv[i]);
-        }else if (str == "-blur"){ // output directory
+        }else if (str == "-blur"){
             ++i;
             blurLevel = atof(argv[i]);
+        } else if (str == "-dry-run"){
+            dryRun = true;
+            saveProcessed = true;
         } else if (inputFile1==""){
             inputFile1=str;
-        } else {
+        }else {
             inputFile2=str;
         }
         ++i;
@@ -183,6 +189,7 @@ int main(int argc, char* argv[]) {
 
     if (inputFile1==""){
         cout<<"Error: Need at list one input file"<<endl;
+        printHelp();
         return -1;
     }
 
@@ -206,10 +213,15 @@ int main(int argc, char* argv[]) {
         Mat preprocessed2 = preprocessImage(secondImage, blurLevel, useSobel, thLevel, saveProcessed, outputDir + "/second");
         auto rects2 = findContoursRects(preprocessed2);
         cout<<"find contours in 2 new: "<<rects2.capacity()<<endl;
-
-        cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coinCpp");
+        if (dryRun) {
+            return 0;
+        }
+        cropResultImages(firstImage, secondImage, rects1, rects2, outputDir + "/coin");
     } else {
-        cutSingleImage(firstImage, rects1, outputDir + "/coinCpp");
+        if (dryRun) {
+            return 0;
+        }
+        cutSingleImage(firstImage, rects1, outputDir + "/coin");
     }
     return 0;
 }
