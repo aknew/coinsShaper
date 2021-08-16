@@ -1,5 +1,9 @@
+#!/usr/local/bin/python3
 import numpy as np
 import cv2 as cv
+import sys
+import os
+from datetime import datetime
 
 blurSize = 5
 thresh = 180
@@ -46,15 +50,26 @@ def getCroppedImage(img, rect):
     y2 = min(s[1], rect[0]+rect[2] + ofset)
     return img[x1:x2, y1:y2]
 
-im1 = cv.imread('/Users/aknew/Documents/samples-shape/IMG_2729.jpeg')
-im2 = cv.imread('/Users/aknew/Documents/samples-shape/IMG_2730.jpeg')
+t = datetime.now()
+path = t.strftime('%Y%m%d %H:%M:%S') + "/"
+
+try:
+    os.mkdir(path)
+except OSError:
+    print ("Creation of the directory %s failed" % path)
+
+file1 = sys.argv[1]
+file2 = sys.argv[2]
+
+im1 = cv.imread(file1)
+im2 = cv.imread(file2)
 
 th1= preprocess(im1)
 th2= preprocess(im2)
 
 if debugSave:
-    cv.imwrite("th1.jpg", th1)
-    cv.imwrite("th2.jpg", th2)
+    cv.imwrite(path + "th1.jpg", th1)
+    cv.imwrite(path + "th2.jpg", th2)
 
 r1 = getContoursRects(th1)
 r2 = getContoursRects(th2)
@@ -75,5 +90,5 @@ for rect1 in r1:
             #combine 2 images
             vis[:h1, :w1,:3] = cropedim1
             vis[:h2, w1:w1+w2,:3] = cropedim2
-            cv.imwrite("img{}.jpg".format(number), vis)
+            cv.imwrite(path + "img{}.jpg".format(number), vis)
             number += 1
